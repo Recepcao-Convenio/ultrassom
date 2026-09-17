@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organizador de Imagens de Ultrassonografia — Clínica Pantheon</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f8; --panel:#ffffff; --border:#dbe1e8; --text:#1f2937; --muted:#6b7280;
+    --accent:#2563eb; --accent-dark:#1d4ed8; --accent-bg:#eef2ff;
+    --ok:#16a34a; --warn:#d97706; --danger:#dc2626;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:0 16px 60px; background:var(--bg); color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size:14px;
+  }
+  h1{font-size:19px; margin:20px 0 4px;}
+  h2{font-size:15px; margin:0 0 10px;}
+  .subtitle{color:var(--muted); margin:0 0 20px; font-size:13px;}
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; margin-bottom:16px;
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  label{font-size:12px; color:var(--muted); display:block; margin-bottom:4px;}
+  input[type=text], input[type=date]{
+    padding:7px 9px; border:1px solid var(--border); border-radius:7px; font-size:13px; width:220px;
+    background:#fff; color:var(--text);
+  }
+  button{
+    cursor:pointer; border:1px solid var(--border); background:#fff; color:var(--text);
+    padding:8px 14px; border-radius:7px; font-size:13px; font-weight:500;
+  }
+  button:hover{background:#f0f2f5;}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+  button.primary:hover{background:var(--accent-dark);}
+  button.ghost{background:transparent; border-color:transparent; color:var(--accent); padding:4px 6px;}
+  button:disabled{opacity:.5; cursor:not-allowed;}
+  button.small{padding:3px 7px; font-size:11px;}
+  .dropzone{
+    border:2px dashed var(--border); border-radius:var(--radius); padding:30px 16px;
+    text-align:center; color:var(--muted); background:#fbfcfd; cursor:pointer;
+  }
+  .dropzone.drag{border-color:var(--accent); background:var(--accent-bg); color:var(--accent-dark);}
+  #fileInput{display:none;}
+  .progress-wrap{margin-top:12px; display:none;}
+  .progress-wrap.show{display:block;}
+  .progress-bar{height:8px; background:#e5e7eb; border-radius:5px; overflow:hidden;}
+  .progress-fill{height:100%; width:0%; background:var(--accent); transition:width .15s;}
+  .progress-label{font-size:12px; color:var(--muted); margin-top:6px;}
+  details.dict{margin-top:4px;}
+  summary{cursor:pointer; font-size:13px; color:var(--accent-dark); font-weight:500;}
+  .region-row{display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid #f0f2f5; flex-wrap:wrap;}
+  .region-row:last-child{border-bottom:none;}
+  .region-name{font-weight:600; min-width:150px;}
+  .chip{
+    background:#eef2f7; border-radius:14px; padding:2px 9px; font-size:11.5px; color:#374151;
+    display:inline-flex; align-items:center; gap:5px;
+  }
+  .chip button{padding:0; border:none; background:none; font-size:12px; color:#9ca3af; line-height:1;}
+  .add-kw-input{width:120px; padding:4px 6px; font-size:12px;}
+  .group{margin-bottom:18px;}
+  .group-header{
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+    padding:8px 12px; background:var(--panel); border:1px solid var(--border); border-radius:8px;
+  }
+  .group-header .title{font-weight:600; display:flex; align-items:center; gap:8px;}
+  .badge{
+    background:var(--accent-bg); color:var(--accent-dark); border-radius:12px; padding:1px 9px; font-size:12px;
+  }
+  .group-header.unclassified .title .badge{background:#fef3c7; color:#92400e;}
+  .thumbs{display:flex; flex-wrap:wrap; gap:10px;}
+  .thumb{
+    width:128px; background:#fff; border:1px solid var(--border); border-radius:8px; overflow:hidden;
+    font-size:11px;
+  }
+  .thumb img{width:100%; height:96px; object-fit:cover; display:block; background:#000;}
+  .thumb .meta{padding:5px 6px;}
+  .thumb .ocr{color:var(--muted); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:4px;}
+  .thumb select{width:100%; font-size:10.5px; padding:2px; margin-bottom:4px; border-radius:5px; border:1px solid var(--border);}
+  .thumb .actions{display:flex; justify-content:space-between;}
+  .thumb .actions button{padding:2px 5px; font-size:11px;}
+  .low-conf{outline:2px solid var(--warn);}
+  .empty-hint{color:var(--muted); font-size:12.5px; font-style:italic;}
+  .toolbar-bottom{
+    position:sticky; bottom:0; background:var(--bg); padding:14px 0; margin-top:10px;
+    display:flex; gap:10px; border-top:1px solid var(--border);
+  }
+  footer.note{color:var(--muted); font-size:11.5px; margin-top:30px; line-height:1.5;}
+</style>
+</head>
+<body>
+
+<h1>Organizador de Imagens de Ultrassonografia</h1>
+<p class="subtitle">Clínica Pantheon — envia as JPEG de um exame, identifica a região anatômica automaticamente (lendo o rótulo gravado pelo aparelho) e monta as folhas de impressão.</p>
+
+<div class="panel">
+  <div class="row" style="margin-bottom:12px;">
+    <div>
+      <label>Paciente (lido automaticamente da 1ª imagem enviada — pode editar)</label>
+      <input type="text" id="patientName" placeholder="Nome do paciente">
+    </div>
+    <div>
+      <label>Data do exame (idem — pode editar)</label>
+      <input type="date" id="examDate">
+    </div>
+    <div>
+      <label>Layout da folha impressa</label>
+      <select id="sheetLayoutSelect">
+        <option value="2x3" selected>2 colunas × 3 linhas (6 por folha) — retrato</option>
+        <option value="6x2">6 colunas × 2 linhas (12 por folha) — paisagem</option>
+        <option value="3x2">3 colunas × 2 linhas (6 por folha) — paisagem</option>
+      </select>
+    </div>
+  </div>
+
+  <details class="dict">
+    <summary>Regiões e palavras-chave reconhecidas (clique para editar)</summary>
+    <div id="dictEditor" style="margin-top:10px;"></div>
+    <div class="row" style="margin-top:10px;">
+      <button id="addRegionBtn" class="small">+ Nova região</button>
+      <button id="exportDictBtn" class="small">Exportar configuração (.json)</button>
+      <button id="importDictBtn" class="small">Importar configuração</button>
+      <button id="resetDictBtn" class="small">Restaurar padrão</button>
+      <input type="file" id="importDictInput" accept=".json" style="display:none;">
+    </div>
+  </details>
+</div>
+
+<div class="panel">
+  <div class="dropzone" id="dropzone">
+    <div><strong>Arraste as imagens JPEG (ou um .zip com as imagens) do exame aqui</strong> ou clique para selecionar</div>
+    <div style="font-size:12px; margin-top:4px;">Pode selecionar todas as imagens de um exame de uma vez (várias regiões juntas), soltar vários arquivos .zip juntos, ou misturar imagens soltas e .zip</div>
+  </div>
+  <input type="file" id="fileInput" accept="image/jpeg,image/jpg,image/png,.zip,application/zip,application/x-zip-compressed" multiple>
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">Processando…</div>
+  </div>
+</div>
+
+<div id="resultsArea"></div>
+
+<div class="toolbar-bottom" id="bottomToolbar" style="display:none;">
+  <button class="primary" id="generateBtn">Baixar PDF organizado</button>
+  <button id="downloadZipBtn">Baixar ZIP organizado por região</button>
+  <button id="clearAllBtn">Limpar tudo</button>
+</div>
+<div class="progress-wrap" id="pdfProgressWrap">
+  <div class="progress-bar"><div class="progress-fill" id="pdfProgressFill"></div></div>
+  <div class="progress-label" id="pdfProgressLabel">Gerando PDF…</div>
+</div>
+
+<footer class="note">
+  Todo o processamento (leitura das imagens e reconhecimento de texto) acontece no seu navegador — nenhuma imagem é enviada para fora do computador.
+  A classificação é feita lendo o rótulo de região gravado pelo próprio aparelho de ultrassom (ex: "R TIREOIDE", "R ABD T", "CAROTIDAS"); confira e corrija manualmente antes de gerar o layout final.
+</footer>
+
+<script>
+(function(){
+
+// ---------- Default region dictionary ----------
+const DEFAULT_REGIONS = [
+  {id:'abd_total', name:'Abdômen Total', keywords:['ABD T','ABDOME TOTAL','ABDOMEN TOTAL','ABD TOTAL','ABDOME','ABDOMEN','ABDEMEN','ABD6MEN','FIGADO','PANCREAS','BACO','BEXIGA','AORTA']},
+  {id:'abd_sup', name:'Abdômen Superior', keywords:['ABD SUP','ABDOME SUPERIOR','ABDOMEN SUPERIOR']},
+  {id:'abd_inf', name:'Abdômen Inferior / Pélvico', keywords:['ABD INF','ABDOME INFERIOR','PELVE','PELVICA','PELVICO','GIN']},
+  {id:'rins', name:'Rins e Vias Urinárias', keywords:['RINS','VIAS URINARIAS','APARELHO URINARIO','R RINS','RIM DIR','RIM ESQ','RIM DIREITO','RIM ESQUERDO']},
+  {id:'vesicula', name:'Vesícula e Vias Biliares', keywords:['VESICULA BILIAR','VIAS BILIARES','VESICULA','VES BILIAR','COLEDOCO']},
+  {id:'tireoide', name:'Tireoide', keywords:['TIREOIDE','TIREOIDIANA','TIREDIDE']},
+  {id:'mama', name:'Mama', keywords:['MAMAS','MAMA','MAMARIA']},
+  {id:'partes_moles', name:'Partes Moles', keywords:['PARTES MOLES','PARTE MOLE']},
+  {id:'carotidas', name:'Carótidas', keywords:['CAROTIDA','CAROTIDAS','VERTEBRAIS']},
+  {id:'prostata', name:'Próstata', keywords:['PROSTATA']},
+  {id:'transvaginal', name:'Transvaginal', keywords:['TRANSVAGINAL','TV']},
+  {id:'obstetrica', name:'Obstétrica', keywords:['OBSTETRICA','OBSTETRICO','GESTACIONAL']},
+  {id:'escrotal', name:'Bolsa Escrotal', keywords:['BOLSA ESCROTAL','ESCROTAL','TESTICULAR']},
+  {id:'vascular_membros', name:'Vascular de Membros', keywords:['DOPPLER VENOSO','DOPPLER ARTERIAL','MMII','MMSS','MI ARTERIAL','MI VENOSO','LEA','LEV']},
+  {id:'articular', name:'Articular', keywords:['ARTICULAR','OMBRO','JOELHO','QUADRIL','COTOVELO','PUNHO','TORNOZELO']},
+];
+const UNCLASSIFIED_ID = 'unclassified';
+
+let regions = loadRegions();
+let images = []; // {id, file, url, canvas, regionId, ocrTextRaw, confidence, order}
+let imgSeq = 0;
+
+function loadRegions(){
+  return JSON.parse(JSON.stringify(DEFAULT_REGIONS));
+}
+
+// ---------- Text normalization / matching ----------
+function normalize(t){
+  return (t||'').toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^A-Z0-9 ]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function matchRegion(text){
+  const n = normalize(text);
+  if(!n) return null;
+  let best = null, bestLen = 0;
+  for(const r of regions){
+    for(const kw of r.keywords){
+      const nk = normalize(kw);
+      if(nk && n.includes(nk) && nk.length > bestLen){
+        best = r.id; bestLen = nk.length;
+      }
+    }
+  }
+  return best;
+}
+
+// ---------- Dictionary editor UI ----------
+function renderDictEditor(){
+  const el = document.getElementById('dictEditor');
+  el.innerHTML = '';
+  regions.forEach(r=>{
+    const row = document.createElement('div');
+    row.className = 'region-row';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'region-name';
+    nameEl.textContent = r.name;
+    nameEl.title = 'Clique para renomear';
+    nameEl.style.cursor = 'pointer';
+    nameEl.onclick = ()=>{
+      const nv = prompt('Renomear região:', r.name);
+      if(nv && nv.trim()){ r.name = nv.trim(); renderDictEditor(); renderResults(); }
+    };
+    row.appendChild(nameEl);
+    r.keywords.forEach((kw, ki)=>{
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.innerHTML = '<span></span> <button title="remover">×</button>';
+      chip.querySelector('span').textContent = kw;
+      chip.querySelector('button').onclick = ()=>{ r.keywords.splice(ki,1); renderDictEditor(); };
+      row.appendChild(chip);
+    });
+    const addInput = document.createElement('input');
+    addInput.className = 'add-kw-input';
+    addInput.placeholder = '+ palavra-chave';
+    addInput.onkeydown = (e)=>{
+      if(e.key === 'Enter' && addInput.value.trim()){
+        r.keywords.push(addInput.value.trim());
+        renderDictEditor();
+      }
+    };
+    row.appendChild(addInput);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'small ghost';
+    delBtn.textContent = 'excluir região';
+    delBtn.onclick = ()=>{
+      if(confirm('Excluir a região "'+r.name+'"? Imagens já classificadas nela vão para "Não classificado".')){
+        regions = regions.filter(x=>x.id!==r.id);
+        images.forEach(im=>{ if(im.regionId===r.id) im.regionId=null; });
+        renderDictEditor(); renderResults();
+      }
+    };
+    row.appendChild(delBtn);
+    el.appendChild(row);
+  });
+}
+
+document.getElementById('addRegionBtn').onclick = ()=>{
+  const name = prompt('Nome da nova região anatômica:');
+  if(!name || !name.trim()) return;
+  const id = 'r_' + Date.now();
+  regions.push({id, name:name.trim(), keywords:[name.trim().toUpperCase()]});
+  renderDictEditor();
+};
+document.getElementById('resetDictBtn').onclick = ()=>{
+  if(confirm('Restaurar a lista padrão de regiões? Isso não altera imagens já classificadas.')){
+    regions = loadRegions(); renderDictEditor();
+  }
+};
+document.getElementById('exportDictBtn').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(regions,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'regioes-usg.json';
+  a.click();
+};
+document.getElementById('importDictBtn').onclick = ()=> document.getElementById('importDictInput').click();
+document.getElementById('importDictInput').onchange = (e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(Array.isArray(parsed)){ regions = parsed; renderDictEditor(); renderResults(); }
+      else alert('Arquivo inválido.');
+    }catch(err){ alert('Não foi possível ler o arquivo: '+err.message); }
+  };
+  reader.readAsText(f);
+};
+
+// ---------- Upload handling ----------
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.onclick = ()=> fileInput.click();
+['dragenter','dragover'].forEach(ev=>dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev=>dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', e=>{ handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e=> handleFiles(e.target.files));
+
+let worker = null;
+async function getWorker(){
+  if(worker) return worker;
+  worker = await Tesseract.createWorker('eng');
+  return worker;
+}
+
+function loadImage(file){
+  return new Promise((resolve,reject)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=> resolve({img, url});
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function cropCanvas(img, bx, by, bw, bh){
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const c = document.createElement('canvas');
+  const cw = Math.round(w*bw), ch = Math.round(h*bh);
+  c.width = cw; c.height = ch;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, Math.round(w*bx), Math.round(h*by), cw, ch, 0, 0, cw, ch);
+  return c;
+}
+
+async function ocrRegionLabel(img){
+  const w = await getWorker();
+  // Pass 1: tight crop of the right-side info panel where the machine prints "R <REGIAO>" (Philips-style)
+  const tight = cropCanvas(img, 0.78, 0.20, 0.22, 0.32);
+  let { data } = await w.recognize(tight);
+  let text = data.text || '';
+  let region = matchRegion(text);
+  if(region) return {region, text, pass:1};
+  // Pass 2: header-cell crop where some equipment (e.g. GE) prints the exam/region name next to the probe code
+  const headCell = cropCanvas(img, 0.60, 0.0, 0.25, 0.09);
+  const rHead = await w.recognize(headCell);
+  text = (text + ' | ' + (rHead.data.text||'')).trim();
+  region = matchRegion(rHead.data.text||'');
+  if(region) return {region, text, pass:2};
+  // Pass 3: broader crop (entire right-hand column) in case the panel sits slightly differently
+  const broad = cropCanvas(img, 0.62, 0.0, 0.38, 1.0);
+  const r2 = await w.recognize(broad);
+  text = (text + ' | ' + (r2.data.text||'')).trim();
+  region = matchRegion(r2.data.text||'');
+  if(region) return {region, text, pass:3};
+  // Pass 4: top-left caption (organ/vessel name, sometimes matches a region keyword directly)
+  const topleft = cropCanvas(img, 0.0, 0.06, 0.42, 0.16);
+  const r3 = await w.recognize(topleft);
+  text = (text + ' | ' + (r3.data.text||'')).trim();
+  region = matchRegion(r3.data.text||'');
+  return {region, text, pass:4};
+}
+
+// ---------- Header OCR: patient name + exam date, read from the image itself ----------
+function parseHeaderText(raw){
+  const line = (raw||'').split('\n').map(l=>l.trim()).filter(Boolean)[0] || (raw||'').replace(/\n/g,' ');
+  const dateRe = /(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{2,4})/g;
+  const dates = [];
+  let m;
+  while((m = dateRe.exec(line)) !== null){
+    let [, d, mo, y] = m;
+    if(y.length===2) y = (parseInt(y,10) > 50 ? '19' : '20') + y;
+    d = d.padStart(2,'0'); mo = mo.padStart(2,'0');
+    if(+d>=1 && +d<=31 && +mo>=1 && +mo<=12){
+      dates.push({iso:`${y}-${mo}-${d}`, index:m.index});
+    }
+  }
+  let name = '';
+  if(dates.length){
+    // Only trust the name when at least one date was found nearby — otherwise it's likely OCR noise
+    const namePart = line.slice(0, dates[0].index);
+    name = namePart.replace(/[,\s]+$/,'').replace(/\s+/g,' ').trim();
+    if(!/[A-Za-zÀ-ÿ]{3,}/.test(name)) name = '';
+  }
+  // Exam date: prefer the last date on the line (birth date usually comes first, exam date after)
+  const examDate = dates.length ? dates[dates.length-1].iso : '';
+  return {name, examDate};
+}
+
+async function ocrHeaderInfo(img){
+  try{
+    const w = await getWorker();
+    const crop = cropCanvas(img, 0.0, 0.0, 0.85, 0.10);
+    const { data } = await w.recognize(crop);
+    return parseHeaderText(data.text || '');
+  }catch(err){
+    console.error('Falha ao ler cabeçalho da imagem', err);
+    return {name:'', examDate:''};
+  }
+}
+
+function isZipFile(f){
+  return /\.zip$/i.test(f.name) || f.type==='application/zip' || f.type==='application/x-zip-compressed';
+}
+function isImageName(name){
+  return /\.(jpe?g|png)$/i.test(name);
+}
+
+async function extractImagesFromZip(zipFile, onNote){
+  const out = [];
+  try{
+    const zip = await JSZip.loadAsync(zipFile);
+    const entries = Object.values(zip.files).filter(e=>
+      !e.dir && isImageName(e.name) && !/^__MACOSX\//.test(e.name) && !/(^|\/)\.[^/]*$/.test(e.name)
+    );
+    for(const entry of entries){
+      if(onNote) onNote(entry.name);
+      const blob = await entry.async('blob');
+      const ext = entry.name.split('.').pop().toLowerCase();
+      const mime = ext==='png' ? 'image/png' : 'image/jpeg';
+      const plainName = entry.name.split('/').pop();
+      out.push(new File([blob], plainName, {type:mime}));
+    }
+  }catch(err){
+    alert('Não foi possível abrir o arquivo .zip "'+zipFile.name+'": '+err.message);
+  }
+  return out;
+}
+
+async function handleFiles(fileList){
+  const rawFiles = Array.from(fileList);
+  const zipFiles = rawFiles.filter(isZipFile);
+  let files = rawFiles.filter(f=>/^image\//.test(f.type) && !isZipFile(f));
+
+  if(zipFiles.length){
+    const progressWrap = document.getElementById('progressWrap');
+    const label = document.getElementById('progressLabel');
+    progressWrap.classList.add('show');
+    for(const zf of zipFiles){
+      label.textContent = `Extraindo imagens de ${zf.name}…`;
+      const extracted = await extractImagesFromZip(zf, (name)=>{ label.textContent = `Extraindo ${name}…`; });
+      files = files.concat(extracted);
+    }
+  }
+
+  if(!files.length){
+    if(zipFiles.length){
+      alert('Não encontrei imagens JPEG/PNG dentro do(s) arquivo(s) .zip selecionado(s).');
+      document.getElementById('progressWrap').classList.remove('show');
+    }
+    return;
+  }
+  const progressWrap = document.getElementById('progressWrap');
+  const fill = document.getElementById('progressFill');
+  const label = document.getElementById('progressLabel');
+  progressWrap.classList.add('show');
+  let done = 0;
+  for(const file of files){
+    let entry;
+    const isFirstImageEver = (images.length === 0);
+    try{
+      const {img, url} = await loadImage(file);
+      entry = {id:'im'+(imgSeq++), file, url, regionId:null, ocrTextRaw:'', confidence:'baixa', order:images.length,
+                naturalWidth:img.naturalWidth, naturalHeight:img.naturalHeight};
+      images.push(entry);
+      const res = await ocrRegionLabel(img);
+      entry.regionId = res.region || null;
+      entry.ocrTextRaw = res.text.replace(/\s+/g,' ').trim();
+      entry.confidence = res.region ? (res.pass===1?'alta':'média') : 'baixa';
+      if(isFirstImageEver){
+        const nameField = document.getElementById('patientName');
+        const dateField = document.getElementById('examDate');
+        if(!nameField.value.trim() || !dateField.value){
+          const hdr = await ocrHeaderInfo(img);
+          if(hdr.name && !nameField.value.trim()) nameField.value = hdr.name;
+          if(hdr.examDate && !dateField.value) dateField.value = hdr.examDate;
+        }
+      }
+    }catch(err){
+      console.error('Falha ao processar', file.name, err);
+    }
+    done++;
+    fill.style.width = Math.round(done/files.length*100)+'%';
+    label.textContent = `Processando ${done}/${files.length}…`;
+    renderResults();
+  }
+  label.textContent = `Concluído: ${done}/${files.length} imagens processadas.`;
+  setTimeout(()=>{ progressWrap.classList.remove('show'); }, 1500);
+  document.getElementById('bottomToolbar').style.display = images.length ? 'flex' : 'none';
+}
+
+// ---------- Results / review UI ----------
+function regionName(id){
+  if(!id) return 'Não classificado';
+  const r = regions.find(x=>x.id===id);
+  return r ? r.name : 'Não classificado';
+}
+
+function renderResults(){
+  const area = document.getElementById('resultsArea');
+  area.innerHTML = '';
+  if(!images.length) return;
+
+  const grouped = {};
+  images.forEach(im=>{
+    const key = im.regionId || UNCLASSIFIED_ID;
+    (grouped[key] = grouped[key] || []).push(im);
+  });
+
+  const orderedIds = regions.map(r=>r.id).filter(id=>grouped[id]);
+  if(grouped[UNCLASSIFIED_ID]) orderedIds.push(UNCLASSIFIED_ID);
+
+  orderedIds.forEach(gid=>{
+    const list = grouped[gid].sort((a,b)=>a.order-b.order);
+    const group = document.createElement('div');
+    group.className = 'group';
+    const header = document.createElement('div');
+    header.className = 'group-header' + (gid===UNCLASSIFIED_ID ? ' unclassified' : '');
+    header.innerHTML = `<div class="title">${regionName(gid)} <span class="badge">${list.length}</span></div>`;
+    group.appendChild(header);
+
+    const thumbs = document.createElement('div');
+    thumbs.className = 'thumbs';
+    list.forEach((im, idx)=>{
+      const t = document.createElement('div');
+      t.className = 'thumb' + (im.confidence==='baixa' ? ' low-conf' : '');
+      const img = document.createElement('img');
+      img.src = im.url;
+      t.appendChild(img);
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const ocrLine = document.createElement('div');
+      ocrLine.className = 'ocr';
+      ocrLine.title = im.ocrTextRaw;
+      ocrLine.textContent = im.ocrTextRaw ? im.ocrTextRaw.slice(0,40) : '(sem texto lido)';
+      meta.appendChild(ocrLine);
+
+      const sel = document.createElement('select');
+      const optNone = document.createElement('option');
+      optNone.value = ''; optNone.textContent = 'Não classificado';
+      sel.appendChild(optNone);
+      regions.forEach(r=>{
+        const o = document.createElement('option');
+        o.value = r.id; o.textContent = r.name;
+        if(im.regionId===r.id) o.selected = true;
+        sel.appendChild(o);
+      });
+      if(!im.regionId) optNone.selected = true;
+      sel.onchange = ()=>{ im.regionId = sel.value || null; im.confidence='manual'; renderResults(); };
+      meta.appendChild(sel);
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      const up = document.createElement('button'); up.className='small'; up.textContent='↑';
+      up.disabled = idx===0;
+      up.onclick = ()=>{ swapOrder(list, idx, idx-1); renderResults(); };
+      const down = document.createElement('button'); down.className='small'; down.textContent='↓';
+      down.disabled = idx===list.length-1;
+      down.onclick = ()=>{ swapOrder(list, idx, idx+1); renderResults(); };
+      const del = document.createElement('button'); del.className='small'; del.textContent='remover';
+      del.onclick = ()=>{ images = images.filter(x=>x.id!==im.id); renderResults(); document.getElementById('bottomToolbar').style.display = images.length?'flex':'none'; };
+      actions.appendChild(up); actions.appendChild(down); actions.appendChild(del);
+      meta.appendChild(actions);
+
+      t.appendChild(meta);
+      thumbs.appendChild(t);
+    });
+    group.appendChild(thumbs);
+    area.appendChild(group);
+  });
+}
+
+function swapOrder(list, i, j){
+  const a = list[i], b = list[j];
+  const tmp = a.order; a.order = b.order; b.order = tmp;
+}
+
+document.getElementById('clearAllBtn').onclick = ()=>{
+  if(confirm('Remover todas as imagens carregadas?')){
+    images = []; renderResults();
+    document.getElementById('bottomToolbar').style.display = 'none';
+  }
+};
+
+// ---------- Final layout generation (6 x 2 por folha, direto em PDF) ----------
+// A4 = 210 x 297mm. widthMM/heightMM = tamanho útil da página (margem de 8mm já descontada).
+const SHEET_LAYOUTS = {
+  '2x3': {cols:2, rows:3, orientation:'portrait',  widthMM:194, heightMM:281},
+  '6x2': {cols:6, rows:2, orientation:'landscape', widthMM:281, heightMM:194},
+  '3x2': {cols:3, rows:2, orientation:'landscape', widthMM:281, heightMM:194},
+};
+const PAGE_MARGIN_MM = 8;
+const CELL_GAP_MM = 4;
+const HEAD_HEIGHT_MM = 14;
+
+function canvasFromImage(img, maxSide){
+  let w = img.naturalWidth, h = img.naturalHeight;
+  if(Math.max(w,h) > maxSide){
+    const scale = maxSide / Math.max(w,h);
+    w = Math.round(w*scale); h = Math.round(h*scale);
+  }
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(img, 0, 0, w, h);
+  return c;
+}
+
+function slugify(s){
+  return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'exame';
+}
+
+document.getElementById('generateBtn').onclick = async ()=>{
+  if(!images.length){ alert('Nenhuma imagem carregada.'); return; }
+  const genBtn = document.getElementById('generateBtn');
+  const pdfWrap = document.getElementById('pdfProgressWrap');
+  const pdfFill = document.getElementById('pdfProgressFill');
+  const pdfLabel = document.getElementById('pdfProgressLabel');
+  genBtn.disabled = true;
+  pdfWrap.classList.add('show');
+  pdfLabel.textContent = 'Gerando PDF…';
+  pdfFill.style.width = '0%';
+
+  try{
+    const patient = document.getElementById('patientName').value.trim();
+    const date = document.getElementById('examDate').value;
+    const layoutKey = document.getElementById('sheetLayoutSelect').value;
+    const layout = SHEET_LAYOUTS[layoutKey];
+    const perSheet = layout.cols * layout.rows;
+
+    const grouped = {};
+    images.forEach(im=>{
+      const key = im.regionId || UNCLASSIFIED_ID;
+      (grouped[key] = grouped[key] || []).push(im);
+    });
+    const orderedIds = regions.map(r=>r.id).filter(id=>grouped[id]);
+    if(grouped[UNCLASSIFIED_ID]) orderedIds.push(UNCLASSIFIED_ID);
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'mm', format:'a4', orientation: layout.orientation==='landscape'?'l':'p'});
+    let pageStarted = false;
+
+    const contentW = layout.widthMM - PAGE_MARGIN_MM*2;
+    const gridH = layout.heightMM - PAGE_MARGIN_MM*2 - HEAD_HEIGHT_MM;
+    const cellW = (contentW - (layout.cols-1)*CELL_GAP_MM) / layout.cols;
+    const cellH = (gridH - (layout.rows-1)*CELL_GAP_MM) / layout.rows;
+
+    let totalImgs = images.length, doneImgs = 0;
+
+    for(const gid of orderedIds){
+      const list = grouped[gid].slice().sort((a,b)=>a.order-b.order);
+      const sheetCount = Math.ceil(list.length/perSheet);
+      for(let s=0; s<sheetCount; s++){
+        const chunk = list.slice(s*perSheet, s*perSheet+perSheet);
+        if(pageStarted) doc.addPage('a4', layout.orientation==='landscape'?'l':'p');
+        pageStarted = true;
+
+        const headY = PAGE_MARGIN_MM + 5;
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.text(regionName(gid) + (patient ? ('  —  ' + patient) : ''), PAGE_MARGIN_MM, headY);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(9);
+        const rightText = (date ? (date + '  —  ') : '') + `Folha ${s+1} de ${sheetCount}`;
+        doc.text(rightText, layout.widthMM - PAGE_MARGIN_MM, headY, {align:'right'});
+        doc.setDrawColor(160);
+        doc.line(PAGE_MARGIN_MM, headY+3, layout.widthMM-PAGE_MARGIN_MM, headY+3);
+
+        const gridTop = PAGE_MARGIN_MM + HEAD_HEIGHT_MM;
+        for(let idx=0; idx<chunk.length; idx++){
+          const im = chunk[idx];
+          const col = idx % layout.cols;
+          const row = Math.floor(idx / layout.cols);
+          const cellX = PAGE_MARGIN_MM + col*(cellW+CELL_GAP_MM);
+          const cellY = gridTop + row*(cellH+CELL_GAP_MM);
+
+          pdfLabel.textContent = `Gerando PDF… (${doneImgs+1}/${totalImgs})`;
+          const {img} = await loadImage(im.file);
+          const canvas = canvasFromImage(img, 1000);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+          const natW = im.naturalWidth || canvas.width, natH = im.naturalHeight || canvas.height;
+          const scale = Math.min(cellW/natW, cellH/natH);
+          const drawW = natW*scale, drawH = natH*scale;
+          const drawX = cellX + (cellW-drawW)/2;
+          const drawY = cellY + (cellH-drawH)/2;
+
+          doc.setFillColor(0,0,0);
+          doc.rect(cellX, cellY, cellW, cellH, 'F');
+          doc.addImage(dataUrl, 'JPEG', drawX, drawY, drawW, drawH);
+
+          doneImgs++;
+          pdfFill.style.width = Math.round(doneImgs/totalImgs*100) + '%';
+        }
+      }
+    }
+
+    const filenameParts = ['exame-organizado'];
+    if(patient) filenameParts.push(slugify(patient));
+    if(date) filenameParts.push(date);
+    doc.save(filenameParts.join('_') + '.pdf');
+  }catch(err){
+    console.error(err);
+    alert('Não foi possível gerar o PDF: ' + err.message);
+  }finally{
+    genBtn.disabled = false;
+    setTimeout(()=>{ pdfWrap.classList.remove('show'); }, 1200);
+  }
+};
+
+// ---------- ZIP export ----------
+document.getElementById('downloadZipBtn').onclick = async ()=>{
+  if(!images.length){ alert('Nenhuma imagem carregada.'); return; }
+  const zip = new JSZip();
+  const grouped = {};
+  images.forEach(im=>{
+    const key = im.regionId || UNCLASSIFIED_ID;
+    (grouped[key] = grouped[key] || []).push(im);
+  });
+  for(const gid of Object.keys(grouped)){
+    const folder = zip.folder(regionName(gid).replace(/[\\/:*?"<>|]/g,'-'));
+    const list = grouped[gid].slice().sort((a,b)=>a.order-b.order);
+    for(let i=0;i<list.length;i++){
+      const im = list[i];
+      const ext = (im.file.name.split('.').pop()||'jpg');
+      folder.file(String(i+1).padStart(2,'0')+'_'+im.file.name, im.file);
+    }
+  }
+  const blob = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'exame-organizado.zip';
+  a.click();
+};
+
+renderDictEditor();
+})();
+</script>
+</body>
+</html>
